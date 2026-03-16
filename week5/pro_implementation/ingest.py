@@ -12,6 +12,7 @@ from tenacity import retry, wait_exponential
 load_dotenv(override=True)
 
 MODEL = "openai/gpt-4.1-nano"
+TEMPERATURE = 0.0
 
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
 collection_name = "docs"
@@ -103,7 +104,7 @@ def make_messages(document):
 @retry(wait=wait)
 def process_document(document):
     messages = make_messages(document)
-    response = completion(model=MODEL, messages=messages, response_format=Chunks)
+    response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages, response_format=Chunks)
     reply = response.choices[0].message.content
     doc_as_chunks = Chunks.model_validate_json(reply).chunks
     return [chunk.as_result(document) for chunk in doc_as_chunks]

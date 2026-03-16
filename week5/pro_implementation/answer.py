@@ -1,7 +1,8 @@
+import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from chromadb import PersistentClient
-from litellm import completion
+from litellm import completion, _turn_on_debug
 from pydantic import BaseModel, Field
 from pathlib import Path
 from tenacity import retry, wait_exponential
@@ -9,8 +10,13 @@ from tenacity import retry, wait_exponential
 
 load_dotenv(override=True)
 
-# MODEL = "openai/gpt-4.1-nano"
-MODEL = "openrouter/openai/gpt-oss-120b"
+os.environ["LITELLM_LOG"] = "INFO"
+_turn_on_debug()
+
+MODEL = "openai/gpt-4.1-nano"
+# MODEL = "openrouter/openai/gpt-oss-120b"
+TEMPERATURE = 0.0
+
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
 KNOWLEDGE_BASE_PATH = Path(__file__).parent.parent / "knowledge-base"
 SUMMARIES_PATH = Path(__file__).parent.parent / "summaries"
@@ -68,10 +74,10 @@ Reply only with the list of ranked chunk ids, nothing else. Include all the chun
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
-    response = completion(model=MODEL, messages=messages, response_format=RankOrder)
+    response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages, response_format=RankOrder)
     reply = response.choices[0].message.content
     order = RankOrder.model_validate_json(reply).order
-    return [chunks[i - 1] for i in order]
+    return [chunks[i - 1] for i in order[:FINAL_K]]
 
 
 def make_rag_messages(question, history, chunks):
@@ -103,7 +109,7 @@ Respond only with a short, refined question that you will use to search the Know
 It should be a VERY short specific question most likely to surface content. Focus on the question details.
 IMPORTANT: Respond ONLY with the precise knowledgebase query, nothing else.
 """
-    response = completion(model=MODEL, messages=[{"role": "system", "content": message}])
+    response = completion(model=MODEL, temperature=TEMPERATURE, messages=[{"role": "system", "content": message}])
     return response.choices[0].message.content
 
 
@@ -141,5 +147,5 @@ def answer_question(question: str, history: list[dict] = []) -> tuple[str, list]
     """
     chunks = fetch_context(question)
     messages = make_rag_messages(question, history, chunks)
-    response = completion(model=MODEL, messages=messages)
+    response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages)
     return response.choices[0].message.content, chunks
