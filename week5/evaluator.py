@@ -139,6 +139,11 @@ def run_answer_evaluation(progress=gr.Progress()):
 
         category_accuracy[test.category].append(result.accuracy)
 
+        print("Test number:", count)
+        print("Test:", test)
+        print("Result:", result)
+        print(result)
+
         # Update progress bar only
         progress(prog_value, desc=f"Evaluating test {count}...")
 
