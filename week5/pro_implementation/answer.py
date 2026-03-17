@@ -1,4 +1,5 @@
 import os
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from chromadb import PersistentClient
@@ -10,8 +11,8 @@ from tenacity import retry, wait_exponential
 
 load_dotenv(override=True)
 
-os.environ["LITELLM_LOG"] = "INFO"
-_turn_on_debug()
+# os.environ["LITELLM_LOG"] = "INFO"
+# _turn_on_debug()
 
 # MODEL = "openai/gpt-4.1-nano"
 MODEL = "openrouter/openai/gpt-oss-120b"
@@ -56,6 +57,10 @@ class RankOrder(BaseModel):
     )
 
 
+def get_content(chunk):
+    return f"Extract from {chunk.metadata['source']}:\n{chunk.page_content}"
+
+
 @retry(wait=wait)
 def rerank(question, chunks):
     system_prompt = """
@@ -65,11 +70,13 @@ The chunks are provided in the order they were retrieved; this should be approxi
 You must rank order the provided chunks by relevance to the question, with the most relevant chunk first.
 Reply only with the list of ranked chunk ids, nothing else. Include all the chunk ids you are provided with, reranked.
 """
-    user_prompt = f"The user has asked the following question:\n\n{question}\n\nOrder all the chunks of text by relevance to the question, from most relevant to least relevant. Include all the chunk ids you are provided with, reranked.\n\n"
+    user_prompt = f"The user has asked the following question:\n\n{question}\n\nOrder all the chunks of text by relevance to the question, from most relevant to least relevant. Include all the chunk ids you are provided with, reranked.\n"
+    user_prompt += "Reply only with the list of ranked chunk ids, nothing else.\n\n"
     user_prompt += "Here are the chunks:\n\n"
-    for index, chunk in enumerate(chunks):
-        user_prompt += f"# CHUNK ID: {index + 1}:\n\n{chunk.page_content}\n\n"
-    user_prompt += "Reply only with the list of ranked chunk ids, nothing else."
+
+    chanks_for_prompt = [{ 'id': index + 1, 'content': get_content(chunk) } for index, chunk in enumerate(chunks)]
+    user_prompt += json.dumps(chanks_for_prompt)
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
@@ -77,12 +84,15 @@ Reply only with the list of ranked chunk ids, nothing else. Include all the chun
     response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages, response_format=RankOrder)
     reply = response.choices[0].message.content
     order = RankOrder.model_validate_json(reply).order
-    return [chunks[i - 1] for i in order[:FINAL_K]]
+    if order:
+        return [chunks[i - 1] for i in order[:FINAL_K]]
+    else:
+        return chunks
 
 
 def make_rag_messages(question, history, chunks):
     context = "\n\n".join(
-        f"Extract from {chunk.metadata['source']}:\n{chunk.page_content}" for chunk in chunks
+        get_content(chunk) for chunk in chunks
     )
     system_prompt = SYSTEM_PROMPT.format(context=context)
     return (

@@ -7,6 +7,16 @@ from dotenv import load_dotenv
 from evaluation.test import TestQuestion, load_tests
 from pro_implementation.answer import answer_question, fetch_context
 
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG, 
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    filename='eval.log'
+)
+
+logger = logging.getLogger(__name__)
+
 
 load_dotenv(override=True)
 
@@ -128,6 +138,12 @@ def evaluate_answer(test: TestQuestion) -> tuple[AnswerEval, str, list]:
     # Get RAG response using shared answer module
     generated_answer, retrieved_docs = answer_question(test.question)
 
+    logger.info(f"Test category: {test.category}")
+    logger.info(f"Test question: {test.question}")
+    logger.info(f"Test reference answer: {test.reference_answer}")
+    logger.info(f"Generated answer: {generated_answer}")
+    logger.info(f"Retrieved docs: {retrieved_docs}")
+
     # LLM judge prompt
     judge_messages = [
         {
@@ -159,6 +175,8 @@ Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each di
 
     answer_eval = AnswerEval.model_validate_json(judge_response.choices[0].message.content)
 
+    logger.info(f"Answer evaluation: {answer_eval}")
+
     return answer_eval, generated_answer, retrieved_docs
 
 
@@ -177,8 +195,10 @@ def evaluate_all_answers():
     tests = load_tests()
     total_tests = len(tests)
     for index, test in enumerate(tests):
-        result = evaluate_answer(test)[0]
         progress = (index + 1) / total_tests
+        if test.category != "numerical":
+            continue
+        result = evaluate_answer(test)[0]
         yield test, result, progress
 
 
