@@ -13,8 +13,8 @@ load_dotenv(override=True)
 os.environ["LITELLM_LOG"] = "INFO"
 _turn_on_debug()
 
-MODEL = "openai/gpt-4.1-nano"
-# MODEL = "openrouter/openai/gpt-oss-120b"
+# MODEL = "openai/gpt-4.1-nano"
+MODEL = "openrouter/openai/gpt-oss-120b"
 TEMPERATURE = 0.0
 
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
