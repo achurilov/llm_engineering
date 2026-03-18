@@ -11,9 +11,6 @@ from tenacity import retry, wait_exponential
 
 load_dotenv(override=True)
 
-# os.environ["LITELLM_LOG"] = "INFO"
-# _turn_on_debug()
-
 # MODEL = "openai/gpt-4.1-nano"
 MODEL = "openrouter/openai/gpt-oss-120b"
 TEMPERATURE = 0.0
@@ -58,7 +55,7 @@ class RankOrder(BaseModel):
 
 
 def get_content(chunk):
-    return f"Extract from {chunk.metadata['source']}:\n{chunk.page_content}"
+    return chunk.page_content
 
 
 @retry(wait=wait)

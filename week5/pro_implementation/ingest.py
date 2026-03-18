@@ -8,6 +8,15 @@ from litellm import completion
 from multiprocessing import Pool
 from tenacity import retry, wait_exponential
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    filename='ingest.log'
+)
+
+logger = logging.getLogger(__name__)
 
 load_dotenv(override=True)
 
@@ -46,7 +55,7 @@ class Chunk(BaseModel):
     def as_result(self, document):
         metadata = {"source": document["source"], "type": document["type"]}
         return Result(
-            page_content=self.headline + "\n\n" + self.summary + "\n\n" + self.original_text,
+            page_content=self.headline + "\n\n" + self.summary + "\n\n" + self.original_text + "\n\nThe original document summary:\n" + document["summary"],
             metadata=metadata,
         )
 
@@ -68,6 +77,32 @@ def fetch_documents():
 
     print(f"Loaded {len(documents)} documents")
     return documents
+
+
+def summarize_document(document):
+    messages = [
+        {
+            "role": "user",
+            "content": f"""
+You take a document and you summarize the entire provided document including all involved entities and names using few sentancies.
+
+The document is from the shared drive of a company called Insurellm.
+The document is of type: {document["type"]}
+The document has been retrieved from: {document["source"]}
+
+A chatbot will use this summary to answer questions about the company together with some chunks extracted from the document.
+
+Here is the document:
+
+{document["text"]}
+""",
+        },
+    ]
+
+    response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages)
+
+    document["summary"] = response.choices[0].message.content
+    logger.info(f"{document["source"]} summary: {document["summary"]}")
 
 
 def make_prompt(document):
@@ -103,6 +138,7 @@ def make_messages(document):
 
 @retry(wait=wait)
 def process_document(document):
+    summarize_document(document)
     messages = make_messages(document)
     response = completion(model=MODEL, temperature=TEMPERATURE, messages=messages, response_format=Chunks)
     reply = response.choices[0].message.content

@@ -196,8 +196,8 @@ def evaluate_all_answers():
     total_tests = len(tests)
     for index, test in enumerate(tests):
         progress = (index + 1) / total_tests
-        if test.category != "numerical":
-            continue
+        # if test.category != "numerical":
+        #     continue
         result = evaluate_answer(test)[0]
         yield test, result, progress
 
